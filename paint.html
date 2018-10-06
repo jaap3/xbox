@@ -1,0 +1,93 @@
+<!doctype html>
+<style>html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; }</style>
+<canvas id="main"></canvas>
+<script>
+const GREEN = [127, 69, 55]
+const RED = [0, 60, 54]
+const BLUE = [182, 61, 53]
+const YELLOW = [54, 83, 56]
+
+const BUTTON_A = 0
+const BUTTON_B = 1
+const BUTTON_X = 2
+const BUTTON_Y = 3
+
+const BUTTON_COLORS = {
+  [BUTTON_A]: GREEN,
+  [BUTTON_B]: RED,
+  [BUTTON_X]: BLUE,
+  [BUTTON_Y]: YELLOW
+}
+
+const LSTICK_X = 0
+const LSTICK_Y = 1
+const RSTICK_X = 2
+const RSTICK_Y = 3
+
+const ctx = document.getElementById('main').getContext('2d')
+
+ctx.canvas.width = innerWidth
+ctx.canvas.height = innerHeight
+
+let gpIdx = null
+let mainLoop = null
+let currentColor = null
+let x = 0
+let y = 0
+let width = 50
+let height = 50
+let drawing = null
+
+window.addEventListener('gamepadconnected', (e) => {
+  gpIdx = e.gamepad.index
+  mainLoop = requestAnimationFrame(main)
+})
+
+window.addEventListener('gamepaddisconnected', (e) => {
+  gpIdx = null
+  if (mainLoop !== null) {
+    window.cancelAnimationFrame(mainLoop)
+    mainLoop = null
+  }
+})
+
+function clamp(min, value, max) {
+  return Math.max(min, Math.min(value, max))
+}
+
+function main() {
+  const gp = navigator.getGamepads()[gpIdx]
+
+  Object.keys(BUTTON_COLORS).forEach((buttonIdx) => {
+    if (gp.buttons[buttonIdx].pressed) {
+      currentColor = [...BUTTON_COLORS[buttonIdx]]
+    }
+  })
+
+  if (currentColor !== null) {
+    width = clamp(25, width + Math.round(gp.axes[RSTICK_X]), 100)
+    height = clamp(25, height + Math.round(gp.axes[RSTICK_Y]), 100)
+
+    y = clamp(0, y + Math.round(gp.axes[LSTICK_Y]) * 10, innerHeight - height)
+    x = clamp(0, x + Math.round(gp.axes[LSTICK_X]) * 10, innerWidth - width)
+
+    const c = currentColor
+
+    if (drawing !== null) {
+      ctx.clearRect(0, 0, innerWidth, innerHeight)
+      ctx.putImageData(drawing, 0, 0)
+    }
+
+    ctx.fillStyle = `hsl(${c[0]}, ${c[1]}%, ${c[2]}%)`
+    ctx.fillRect(x, y, width, height)
+    drawing = ctx.getImageData(0, 0, innerWidth, innerHeight)
+
+    ctx.beginPath()
+    ctx.fillStyle = 'black'
+    ctx.rect(x, y, width, height)
+    ctx.stroke()
+  }
+
+  mainLoop = requestAnimationFrame(main)
+}
+</script>
