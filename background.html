@@ -1,0 +1,57 @@
+<!doctype html>
+<script>
+const GREEN = [127, 69, 55]
+const RED = [0, 60, 54]
+const BLUE = [182, 61, 53]
+const YELLOW = [54, 83, 56]
+
+const BUTTON_A = 0
+const BUTTON_B = 1
+const BUTTON_X = 2
+const BUTTON_Y = 3
+
+const BUTTON_COLORS = {
+  [BUTTON_A]: GREEN,
+  [BUTTON_B]: RED,
+  [BUTTON_X]: BLUE,
+  [BUTTON_Y]: YELLOW
+}
+
+const LSTICK_X = 0
+const LSTICK_Y = 1
+const RSTICK_X = 0
+const RSTICK_Y = 1
+
+let gpIdx = null
+let mainLoop = null
+let currentColor = null
+
+window.addEventListener('gamepadconnected', (e) => {
+  gpIdx = e.gamepad.index
+  mainLoop = requestAnimationFrame(main)
+})
+
+window.addEventListener('gamepaddisconnected', (e) => {
+  gpIdx = null
+  if (mainLoop !== null) {
+    window.cancelAnimationFrame(mainLoop)
+    mainLoop = null
+  }
+})
+
+function main() {
+  const gp = navigator.getGamepads()[gpIdx]
+  Object.keys(BUTTON_COLORS).forEach((buttonIdx) => {
+    if (gp.buttons[buttonIdx].pressed) {
+      currentColor = [...BUTTON_COLORS[buttonIdx]]
+    }
+  })
+  if (currentColor !== null) {
+    let c = currentColor
+    c[0] = Math.max(0, Math.min(c[0] + Math.round(gp.axes[LSTICK_Y]), 360))
+    c[2] = Math.max(25, Math.min(c[2] + Math.round(gp.axes[LSTICK_X]), 75))
+    document.documentElement.style.backgroundColor = `hsl(${c[0]}, ${c[1]}%, ${c[2]}%)`
+  }
+  mainLoop = requestAnimationFrame(main)
+}
+</script>
