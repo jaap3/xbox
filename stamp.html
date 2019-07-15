@@ -1,0 +1,198 @@
+<!doctype html>
+<style>html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; }</style>
+<canvas id="main"></canvas>
+<script>
+const BLACK = [0, 0, 0]
+const WHITE = [255, 255, 255]
+const GREEN = [127, 69, 55]
+const RED = [0, 60, 54]
+const BLUE = [182, 61, 53]
+const YELLOW = [54, 83, 56]
+
+const SHAPES = {
+  rect: function (ctx, fill = false) {
+    if (fill) ctx.fillRect(-50, -50, 100, 100)
+    else ctx.strokeRect(-50, -50, 100, 100)
+  },
+
+  circle: function (ctx, fill = false) {
+    ctx.beginPath()
+    ctx.ellipse(0, 0, 50, 50, Math.PI / 4, 0, 2 * Math.PI)
+    if (fill) ctx.fill()
+    else ctx.stroke()
+  },
+
+  star: function (ctx, fill = false) {
+    ctx.beginPath();
+    const alpha = (2 * Math.PI) / 10
+    for(let i = 11; i !== 0; i--) {
+        const r = 50 * (i % 2 + 1) / 2
+        const omega = alpha * i
+        ctx.lineTo(r * Math.sin(omega), r * Math.cos(omega))
+    }
+    if (fill) ctx.fill()
+    else ctx.stroke()
+  },
+
+  face: function (ctx, fill = false) {
+    SHAPES.circle(ctx, fill)
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.arc(0, 0, 35, 0, Math.PI, false)
+    ctx.moveTo(-20, -15)
+    ctx.arc(-20, -15, 5, 0, Math.PI * 2, true)
+    ctx.moveTo(20, -15)
+    ctx.arc(20, -15, 5, 0, Math.PI * 2, true)
+    ctx.save()
+    if (fill) {
+      ctx.fillStyle = ctx.fillStyle === '#000000' ? 'white' : 'black'
+    }
+    ctx.fill()
+    ctx.restore()
+  }
+}
+
+const BUTTON_A = 0
+const BUTTON_B = 1
+const BUTTON_X = 2
+const BUTTON_Y = 3
+
+const BUMP_L = 4
+const BUMP_R = 5
+
+const LT = 6
+const RT = 7
+
+const THUMB_L = 10
+const THUMB_R = 11
+
+const DPAD_UP = 12
+const DPAD_DOWN = 13
+const DPAD_LEFT = 14
+const DPAD_RIGHT = 15
+
+const LSTICK_X = 0
+const LSTICK_Y = 1
+const RSTICK_X = 2
+const RSTICK_Y = 3
+
+const BUTTON_COLORS = {
+  [BUTTON_A]: GREEN,
+  [BUTTON_B]: RED,
+  [BUTTON_X]: BLUE,
+  [BUTTON_Y]: YELLOW,
+  [THUMB_L]: BLACK,
+  [THUMB_R]: WHITE
+}
+
+const BUTTON_SPAPES = {
+  [DPAD_UP]: SHAPES.rect,
+  [DPAD_DOWN]: SHAPES.circle,
+  [DPAD_LEFT]: SHAPES.star,
+  [DPAD_RIGHT]: SHAPES.face
+}
+
+const ctx = document.getElementById('main').getContext('2d')
+
+ctx.canvas.width = innerWidth
+ctx.canvas.height = innerHeight
+
+let gpIdx = null
+let mainLoop = null
+let stampTimeout = null
+let currentShape = SHAPES.rect
+let currentColor = BLACK
+let x = 0
+let y = 0
+let scaleX = 1
+let scaleY = 1
+let rotation = 0
+
+let drawing = ctx.getImageData(0, 0, innerWidth, innerHeight)
+
+addEventListener('gamepadconnected', (e) => {
+  gpIdx = e.gamepad.index
+  mainLoop = requestAnimationFrame(main)
+})
+
+addEventListener('gamepaddisconnected', () => {
+  gpIdx = null
+  if (mainLoop !== null) {
+    cancelAnimationFrame(mainLoop)
+    mainLoop = null
+  }
+})
+
+function clamp(min, value, max) {
+  return Math.max(min, Math.min(value, max))
+}
+
+function debug(gp) {
+  gp.buttons.forEach((button, idx) => {
+    if (button.pressed || button.touched || button.value) {
+      console.log('button', idx, button)
+    }
+  })
+}
+
+function stamp(ctx, shape, fill = false) {
+  const call = !stampTimeout
+  clearTimeout(stampTimeout)
+  stampTimeout = setTimeout(() => stampTimeout = null, 25)
+  if (call) shape(ctx, fill)
+}
+
+function main() {
+  const gp = navigator.getGamepads()[gpIdx]
+
+  debug(gp)
+
+  Object.keys(BUTTON_COLORS).forEach((buttonIdx) => {
+    if (gp.buttons[buttonIdx].pressed) {
+      currentColor = BUTTON_COLORS[buttonIdx]
+    }
+  })
+
+  Object.keys(BUTTON_SPAPES).forEach((buttonIdx) => {
+    if (gp.buttons[buttonIdx].pressed) {
+      currentShape = BUTTON_SPAPES[buttonIdx]
+    }
+  })
+
+  scaleX = clamp(1, scaleX + Math.round(gp.axes[RSTICK_X]) * .05, 2)
+  scaleY = clamp(1, scaleY + Math.round(gp.axes[RSTICK_Y]) * .05, 2)
+
+  rotation = clamp(0, rotation - gp.buttons[LT].value * 2.5, 360)
+  rotation = clamp(0, rotation + gp.buttons[RT].value * 2.5, 360)
+
+  y = clamp(0, y + Math.round(gp.axes[LSTICK_Y]) * 10, innerHeight)
+  x = clamp(0, x + Math.round(gp.axes[LSTICK_X]) * 10, innerWidth)
+
+  ctx.clearRect(0, 0, innerWidth, innerHeight)
+  ctx.save()
+
+  // restore the previous drawing
+  ctx.putImageData(drawing, 0, 0)
+
+  const c = currentColor
+  ctx.fillStyle = `hsl(${c[0]}, ${c[1]}%, ${c[2]}%)`
+  ctx.strokeStyle = `hsl(${c[0]}, ${c[1]}%, ${c[2]}%)`
+  ctx.lineWidth = 1 / Math.max(scaleX, scaleY)
+
+  ctx.transform(scaleX, 0, 0, scaleY, x, y)
+  ctx.rotate((Math.PI / 180) * rotation)
+
+  if (gp.buttons[BUMP_L].pressed || gp.buttons[BUMP_R].pressed) {
+    // add to the current drawing
+    stamp(ctx, currentShape, gp.buttons[BUMP_L].pressed)
+    // store the new drawing
+    drawing = ctx.getImageData(0, 0, innerWidth, innerHeight)
+  }
+
+  currentShape(ctx)
+
+  ctx.restore()
+
+  mainLoop = requestAnimationFrame(main)
+}
+</script>
